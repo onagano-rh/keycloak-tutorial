@@ -5,6 +5,7 @@
     - [Serverディストリビューションの解凍](#serverディストリビューションの解凍)
 - [StandaloneモードでのKeycloakサーバの起動](#standaloneモードでのkeycloakサーバの起動)
     - [管理ユーザについての注意事項](#管理ユーザについての注意事項)
+    - [WildFlyの管理コンソールについて](#wildflyの管理コンソールについて)
     - [Keycloakが使用するデータベースについての注意事項](#keycloakが使用するデータベースについての注意事項)
         - [PostgreSQLのDockerイメージを使う例](#postgresqlのdockerイメージを使う例)
 - [DomainモードでのKeycloakサーバの起動](#domainモードでのkeycloakサーバの起動)
@@ -99,9 +100,43 @@ Keycloakの管理ユーザを登録後、自由に使用する。
   - シェルスクリプト $SSO_HOME/bin/add-user.sh で登録する
   - データは ./standalone.sso/configuration/ 配下のプロパティファイルに保存される
   - 以下のユースケースではユーザ登録が必須だが、そうでなければ無しで済ますことも可能
+    - WildFlyの管理コンソールを使う
     - リモートから $SSO_HOME/bin/jboss-cli.sh 等で接続する
     - Domainモードで、複数のホストでドメインを構成する
     - Java EE標準の（サーブレットやEJBの配備記述子で設定するような）セキュリティ機能を使う
+
+## WildFlyの管理コンソールについて
+
+WildFlyの操作や設定は、JBoss CLI (jbos-cli.sh) の他に、
+GUIの管理コンソール (http://localhost/8080/console) でもできる。
+これを使うにはあらかじめWildFlyの管理ユーザを登録しておく必要があり、
+そのユーザで上記URLにアクセスし、ログインして使用する。
+
+コピーしたstandalone.ssoやdomain.ssoに対して管理ユーザを登録するには、
+以下のようにそれぞれシステムプロパティをJAVA_OPTS環境変数に指定してadd-user.sh
+を実行する。引数にユーザ名"admin"とそのパスワード"RedHat1!"も指定している。
+
+```shell
+$ JAVA_OPTS="\
+  -Djboss.server.config.user.dir=./standalone.sso/configuration \
+  -Djboss.domain.config.user.dir=./domain.sso/configuration "\
+  ${SSO_HOME}/bin/add-user.sh admin 'RedHat1!'
+```
+
+単に`$SSO_HOME/bin/add-user.sh`だけをオプションや引数なしで実行すると、
+対話的にユーザ名等を聞かれながら$SSO_HOME以下のファイルに直接ユーザが追加される。
+毎回同じ管理ユーザを使うなら、コピー元である$SSO_HOMEに一度だけ追加しておくのもよい。
+
+対話的に聞かれる項目では、管理ユーザかアプリケーションユーザかの項目があるが、
+CLIや管理コンソールのユーザについては管理ユーザを、ServletやEJBのユーザについては
+アプリケーションユーザを選択する。
+ロールについては空でもよい。
+最後にリモートホストからの接続に使用するかどうかを"yes/no"で聞かれるが、
+Domainモードでリモートホストが接続に使用するユーザの場合はyesを選択するが、
+管理コンソールにログインするだけであればnoでよい。
+
+- 参考: 3.2. 管理ユーザー
+  - https://access.redhat.com/documentation/ja-jp/red_hat_jboss_enterprise_application_platform/7.2/html/configuration_guide/management_users
 
 ## Keycloakが使用するデータベースについての注意事項
 
