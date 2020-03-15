@@ -15,6 +15,9 @@
     - [HTTPアクセスログの有効化](#httpアクセスログの有効化)
     - [Request Dumperの有効化](#request-dumperの有効化)
     - [クラスタリングのプロトコルのデフォルトUDPからTCPへの変更](#クラスタリングのプロトコルのデフォルトudpからtcpへの変更)
+- [アプリケーションの準備](#アプリケーションの準備)
+    - [バックエンドのAPIサーバ側](#バックエンドのapiサーバ側)
+    - [フロントエンドのWebアプリ側](#フロントエンドのwebアプリ側)
 
 <!-- markdown-toc end -->
 
@@ -243,7 +246,7 @@ $ grep '<server ' ./domain.sso/configuration/host.xml
 結果的にdomain.sh実行後には2つのサーバが起動する。
 
 ```shell
-$ ps -wfH 
+$ ps -wfH
 UID        PID  PPID  C STIME TTY          TIME CMD
 onagano  26694 18969  0 14:34 pts/1    00:00:00   /bin/sh /.../domain.sh -Djboss.domain.base.dir=./domain.sso
 onagano  26810 26694  0 14:34 pts/1    00:00:02     java -D[Process Controller] ...
@@ -310,3 +313,58 @@ StandaloneモードのCLIと違う点として、domainモードでは
 
 - 参考: How do I switch clustering to TCP instead of multicast UDP in EAP 6?
   - https://access.redhat.com/solutions/140103
+
+
+# アプリケーションの準備
+
+Keycloakのクイックスタートプロジェクトにあるサンプルアプリを2つ使って
+OpenID Connectによる基本的な認証のプロセスを確認する。
+
+- Keycloakのクイックスタートプロジェクト
+  - https://github.com/keycloak/keycloak-quickstarts
+
+参考までに、製品版のRH-SSOの関連情報を以下に示す。
+
+- RH-SSOのクイックスタートプロジェクト
+  - https://github.com/redhat-developer/redhat-sso-quickstarts/
+- Keycloak 4.y.z が RH-SSO 7.3.z に対応する
+  - https://access.redhat.com/solutions/3296901
+
+pom.xmlがバージョンに応じて変わるので、適切な版をチェックアウトし、適宜修正する。
+クイックスタート内の各プロジェクトは、親ディレクトリのpom.xmlを参照して依存性を
+一括管理している。
+
+```shell
+$ cd /path/to
+$ git clone https://github.com/keycloak/keycloak-quickstarts.git
+$ cd keycloak-quickstarts
+$ git checkout -b 4.8.3.Final 4.8.3.Final
+```
+
+子に相当する各プロジェクトを個別にコピーして使用する場合は、親のpom.xmlもコピーして
+階層を合わせる。
+今回はAPIサーバ側として service-jee-jaxrs を、
+それを利用するWebアプリ側として app-jee-jsp を使用する。
+いずれもJava EE標準のWebアプリでKeycloakサーバにデプロイできる
+（ただし、運用環境でKeycloakサーバに通常のアプリをデプロイすることは想定されていない）。
+
+```shell
+$ cd <このチュートリアルのディレクトリ>
+$ cp /path/to/keycloak-quickstarts/pom.xml .
+$ cp /path/to/keycloak-quickstarts/service-jee-jaxrs .
+$ cp /path/to/keycloak-quickstarts/app-jee-jsp .
+```
+
+## バックエンドのAPIサーバ側
+
+```shell
+$ cp -a $SSO_HOME/standalone standalone.api
+```
+
+
+
+## フロントエンドのWebアプリ側
+
+```shell
+$ cp -a $SSO_HOME/standalone standalone.web
+```
