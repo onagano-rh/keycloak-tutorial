@@ -1,0 +1,10 @@
+{
+  "realm": "test-realm",
+  "auth-server-url": "http://localhost:8080/auth",
+  "ssl-required": "external",
+  "resource": "app-jee-jsp",
+  "credentials": {
+    "secret": "eff71f79-b0dd-48e3-a09b-aeacb315cacb"
+  },
+  "confidential-port": 0
+}

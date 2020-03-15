@@ -42,9 +42,9 @@ public class ServiceLocator {
 
             URL requestUrl = new URL(req.getRequestURL().toString());
 
-            String host = requestUrl.getHost();
+            String host = "localhost";
             String schema = requestUrl.getProtocol();
-            String port = requestUrl.getPort() != -1 ? (":" + requestUrl.getPort()) : "";
+            String port = ":9080";
 
             uri = schema + "://" + host + port + "/service";
             return new URL(uri);
