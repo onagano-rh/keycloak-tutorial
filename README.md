@@ -18,8 +18,11 @@
 - [アプリケーションの準備](#アプリケーションの準備)
     - [サンプルアプリのコピー](#サンプルアプリのコピー)
     - [アプリケーションサーバの準備とクライアントアダプタのインストール](#アプリケーションサーバの準備とクライアントアダプタのインストール)
-    - [バックエンドのAPIサーバ側のアプリケーション](#バックエンドのapiサーバ側のアプリケーション)
-    - [フロントエンドのWebアプリ側のアプリケーション](#フロントエンドのwebアプリ側のアプリケーション)
+- [サンプルアプリを使ったOIDCによるSSO設定のチュートリアル](#サンプルアプリを使ったoidcによるsso設定のチュートリアル)
+    - [Keycloakサーバでのレルムの作成](#keycloakサーバでのレルムの作成)
+    - [APIサーバのクライアント登録:](#apiサーバのクライアント登録)
+    - [APIサーバを呼び出すWebアプリのクライアント登録](#apiサーバを呼び出すwebアプリのクライアント登録)
+    - [発展](#発展)
 
 <!-- markdown-toc end -->
 
@@ -418,18 +421,94 @@ Keycloakについてはスタンドアロンモードの代わりにドメイン
 管理ポートはWildFlyの管理コンソールやJBoss CLIによるアクセスに用いる。
 KeycloakそのものはWildFlyにデプロイされているアプリなのでHTTPポートを使う。
 
-| サーバ              | 管理コンソールのURL            |
-|---------------------|--------------------------------|
-| Keycloakそのもの    | http://localhost:8080/auth     |
-| Keycloak (WildFly)  | http://localhost:9990/console  |
-| APIサーバ (WildFly) | http://localhost:10990/console |
-| Webアプリ (WildFly) | http://localhost:11090/console |
+| サーバ              | 管理コンソールのURL              |
+|---------------------|----------------------------------|
+| Keycloakそのもの    | http://localhost:8080/auth/admin |
+| Keycloak (WildFly)  | http://localhost:9990/console    |
+| APIサーバ (WildFly) | http://localhost:10990/console   |
+| Webアプリ (WildFly) | http://localhost:11090/console   |
 
-WildFlyの管理者のユーザ名とパスワードは、
-standalone.\*/configuration/mgmt-users.properties にて
-全て'admin/RedHat1!'に設定してある。
+WildFlyの管理者のユーザ名とパスワードは、全て'admin/RedHat1!'に設定してあり、
+standalone.\*/configuration/mgmt-users.properties に保存されている。
+ただし、このパスワードはBase64エンコードされているだけで暗号化されているわけではないので注意する。
+
 Keycloakについては初回アクセス時に設定したものがデータベースに保存される。
 
 
 # サンプルアプリを使ったOIDCによるSSO設定のチュートリアル
 
+## Keycloakサーバでのレルムの作成
+
+1. 管理ユーザでログインしレルム"test-realm"を作成する。
+1. Rolesメニューでロール"user"を作成する。
+1. Usersメニューでユーザ"testuser01"を作成する。
+   作成後にCredentialsタブでパスワードをTemporary: OFFで作成し、
+   Role Mappingsタブで作成したロール"user"をアサインする。
+1. 同様に、ロール"admin"とユーザ"adminuser01"を作成し、
+   ロール"user"と"admin"をアサインする。
+
+- GitHub link: https://github.com/keycloak/keycloak-quickstarts/tree/4.8.3.Final
+
+## APIサーバのクライアント登録:
+
+1. 管理ユーザでログインし"test-realm"を選択する。
+1. Clientsメニューでクライアント"service-jee-jaxrs"を作成する。
+   Root URLは空でよい。
+1. Access Typeを"bearer-only"に設定する。
+1. Instllationタブで"Keycloak OIDC JSON"を選択し、keycloak.jsonをダウンロードする。
+1. keycloak.jsonを service-jee-jaxrs/config ディレクトリに配置する。
+   もともとあったファイル (client-import.json と keycloak-example.json) は削除してもよい。
+1. アプリケーションをビルドしAPIサーバにデプロイする。
+
+```shell
+$ cd service-jee-jaxrs
+$ mvn -Denforcer.skip=true clean package
+$ cp target/service.war ../standalone.api/deployments/
+```
+- デプロイはJBoss CLIやmvnコマンドでもできるが、上記のようにコピーで済ますとstandalone.xmlが変更されない。
+- keycloak.jsonはservice.warのWEB-INF/に保存され、Keycloakのクライアントアダプタが読み込む。
+- ユーザ名は何でもいいが、ロール名はアプリケーションにハードコードされている (src/main/webapp/WEB-INF/web.xml) ので変えられない。
+- このアプリは以下の3つのREST APIを持っている。
+  "public"は認証なしでアクセスできるが、"secured"は"user"ロールが、"admin"は"admin"ロールが必要になる。
+  - http://localhost:9080/service/public
+  - http://localhost:9080/service/secured
+  - http://localhost:9080/service/admin
+
+- GitHub link: https://github.com/keycloak/keycloak-quickstarts/tree/4.8.3.Final/service-jee-jaxrs
+
+## APIサーバを呼び出すWebアプリのクライアント登録
+
+1. 管理ユーザでログインし"test-realm"を選択する。
+1. Clientsメニューでクライアント"app-jee-jsp"を作成する。
+   Root URLには "http://localhost:9180/app-jsp" を設定する。
+1. Access Typeを"confidential"に設定する。
+1. Instllationタブで"Keycloak OIDC JSON"を選択し、keycloak.jsonをダウンロードする。
+1. keycloak.jsonを service-jee-jaxrs/config ディレクトリに配置する。
+   もともとあったファイル (client-import.json と keycloak-example.json) は削除してもよい。
+1. src/main/java/org/keycloak/quickstart/appjee/ServiceLocator.java でAPIサーバの場所(URL)を決定しているので、
+   "http://localhost:9080/service" を指すように変更する。
+1. アプリケーションをビルドしAPIサーバにデプロイする。
+1. "http://localhost:9180/app-jsp/" にブラウザでアクセスし動作確認する。
+
+```shell
+$ cd app-jee-jsp
+$ vi src/main/java/org/keycloak/quickstart/appjee/ServiceLocator.java
+$ mvn -Denforcer.skip=true clean package
+$ cp target/app-jsp.war ../standalone.web/deployments/
+```
+
+- Access Typeを"confidential"にしたのでこのクライアントはパスワード(secret)を持っており、keycloak.jsonに含まれている。
+  従ってこのファイルは公開できない。
+- ServiceLocator.java ではAPIサーバの場所をシステムプロパティや環境変数でも設定できるようになっているが、
+  サーバの再起動が必要になるためコードの方を変更する。
+- "INVOKE PUBLIC"はログインしなくても呼び出せるが、"INVOKE SECURED"は"testuser01"または"adminuser01"で、
+  "INVOKE ADMIN"は"adminuser01"でログインしないと呼び出せないのを確認する。
+
+- GitHub link: https://github.com/keycloak/keycloak-quickstarts/tree/4.8.3.Final/app-jee-jsp
+
+## 発展
+
+- Request Dumperを有効化し、HTTPヘッダ内のトークンを実際に見てみる。
+  - helper.sh 内でこれを行う関数を定義しているので、sourceして使ってみる。
+- トークンを https://jwt.io/ などでデコードしてみる｡
+- レルムの設定で"Access Token Lifespan"や、"SSO Session Idle"、"SSO Session Max"などの値を変えてみる。
