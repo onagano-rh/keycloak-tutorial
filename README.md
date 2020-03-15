@@ -16,8 +16,10 @@
     - [Request Dumperの有効化](#request-dumperの有効化)
     - [クラスタリングのプロトコルのデフォルトUDPからTCPへの変更](#クラスタリングのプロトコルのデフォルトudpからtcpへの変更)
 - [アプリケーションの準備](#アプリケーションの準備)
-    - [バックエンドのAPIサーバ側](#バックエンドのapiサーバ側)
-    - [フロントエンドのWebアプリ側](#フロントエンドのwebアプリ側)
+    - [サンプルアプリのコピー](#サンプルアプリのコピー)
+    - [アプリケーションサーバの準備とクライアントアダプタのインストール](#アプリケーションサーバの準備とクライアントアダプタのインストール)
+    - [バックエンドのAPIサーバ側のアプリケーション](#バックエンドのapiサーバ側のアプリケーション)
+    - [フロントエンドのWebアプリ側のアプリケーション](#フロントエンドのwebアプリ側のアプリケーション)
 
 <!-- markdown-toc end -->
 
@@ -327,8 +329,15 @@ OpenID Connectによる基本的な認証のプロセスを確認する。
 
 - RH-SSOのクイックスタートプロジェクト
   - https://github.com/redhat-developer/redhat-sso-quickstarts/
-- Keycloak 4.y.z が RH-SSO 7.3.z に対応する
+- Keycloakと、その製品版のRH-SSOのバージョン対応表
   - https://access.redhat.com/solutions/3296901
+    - Keycloak 4.y.z が RH-SSO 7.3.z に対応する
+    - RH-SSO 7.3.z は EAP 7.2.z に相当する
+- KeycloakのベースになっているWildFlyと、その製品版のEAPのバージョン対応表
+  - https://access.redhat.com/solutions/21906
+    - EAP 7.2.z は WildFly 14.y.z に相当する
+
+## サンプルアプリのコピー
 
 pom.xmlがバージョンに応じて変わるので、適切な版をチェックアウトし、適宜修正する。
 クイックスタート内の各プロジェクトは、親ディレクトリのpom.xmlを参照して依存性を
@@ -341,12 +350,11 @@ $ cd keycloak-quickstarts
 $ git checkout -b 4.8.3.Final 4.8.3.Final
 ```
 
-子に相当する各プロジェクトを個別にコピーして使用する場合は、親のpom.xmlもコピーして
-階層を合わせる。
+子に相当する各プロジェクトを個別にコピーして使用する場合は、
+親のpom.xmlもコピーして階層を合わせる。
 今回はAPIサーバ側として service-jee-jaxrs を、
 それを利用するWebアプリ側として app-jee-jsp を使用する。
-いずれもJava EE標準のWebアプリでKeycloakサーバにデプロイできる
-（ただし、運用環境でKeycloakサーバに通常のアプリをデプロイすることは想定されていない）。
+いずれもJava EE標準のWebアプリで最もシンプルな例になる。
 
 ```shell
 $ cd <このチュートリアルのディレクトリ>
@@ -355,16 +363,73 @@ $ cp /path/to/keycloak-quickstarts/service-jee-jaxrs .
 $ cp /path/to/keycloak-quickstarts/app-jee-jsp .
 ```
 
-## バックエンドのAPIサーバ側
+## アプリケーションサーバの準備とクライアントアダプタのインストール
+
+これらをデプロイするアプリケーションサーバを準備する。
+別途WildFlyをダウンロードするのが通常だが、今回はすでにある`$SSO_HOME`で代用する。
+ただし、運用環境でKeycloakサーバに通常のアプリをデプロイすることは想定されていない。
+
+- Keycloak 4.8.3.Final のWildFly用の Client Adapter のダウンロード
+  - https://www.keycloak.org/archive/downloads-4.8.3.html
+- ドキュメント: 2.1.2. JBoss EAP/WildFly Adapter
+  - https://www.keycloak.org/docs/4.8/securing_apps/index.html#jboss-eap-wildfly-adapter
+
+```shell
+$ unzip keycloak-wildfly-adapter-dist-4.8.3.Final.zip -d $SSO_HOME
+$ # 途中ファイルの上書き許可を求められるが、上書きされるのはライセンスのテキストファイル等なので全て許可して問題ない
+$ ls $SSO_HOME/modules/system/add-ons
+```
+
+アプリケーションを動かす各サーバに、クライアントアダプタがインストールしたCLIスクリプトを用いて
+standalone.xmlに適切な変更を加える。
+これにより、このサーバ上で動くアプリケーションが、Java EE標準で使えるFROM認証やBASIC認証の他に、
+KEYCLOAK認証を使えるようになる。
+アダプタを各アプリケーションのライブラリとしてインストールするのではなく、サーバ側に設定することで
+そこにデプロイする全てのアプリケーションから使えるようになる。
+クイックスタートのアプリもKEYCLOAK認証を用いている。
+
+APIサーバ (standalone.api) をポートオフセット1000で準備してアダプタを設定する。
 
 ```shell
 $ cp -a $SSO_HOME/standalone standalone.api
+$ $SSO_HOME/bin/standalone.sh -Djboss.server.base.dir=./standalone.api -Djboss.socket.binding.port-offset=1000 &
+$ $SSO_HOME/bin/jboss-cli.sh --controller=localhost:10990 -c --file=${SSO_HOME}/bin/adapter-elytron-install.cli
 ```
 
-
-
-## フロントエンドのWebアプリ側
+Webアプリのサーバ (standalone.web) をポートオフセット1100で準備してアダプタを設定する。
 
 ```shell
 $ cp -a $SSO_HOME/standalone standalone.web
+$ $SSO_HOME/bin/standalone.sh -Djboss.server.base.dir=./standalone.web -Djboss.socket.binding.port-offset=1100 &
+$ $SSO_HOME/bin/jboss-cli.sh --controller=localhost:11090 -c --file=${SSO_HOME}/bin/adapter-elytron-install.cli
 ```
+
+以下、下記3台のサーバが起動している状態で話を進める。
+
+| サーバ    | ディレクトリ   | HTTPポート | 管理ポート |
+|-----------|----------------|------------|------------|
+| Keycloak  | standalone.sso |       8080 |       9990 |
+| APIサーバ | standalone.api |       9080 |      10990 |
+| Webアプリ | standalone.web |       9180 |      11090 |
+
+Keycloakについてはスタンドアロンモードの代わりにドメインモードを使うこともできる。
+その場合domain.ssoディレクトリやdomain.xmlが対象になるが、ポート番号は変わらない。
+
+管理ポートはWildFlyの管理コンソールやJBoss CLIによるアクセスに用いる。
+KeycloakそのものはWildFlyにデプロイされているアプリなのでHTTPポートを使う。
+
+| サーバ              | 管理コンソールのURL            |
+|---------------------|--------------------------------|
+| Keycloakそのもの    | http://localhost:8080/auth     |
+| Keycloak (WildFly)  | http://localhost:9990/console  |
+| APIサーバ (WildFly) | http://localhost:10990/console |
+| Webアプリ (WildFly) | http://localhost:11090/console |
+
+WildFlyの管理者のユーザ名とパスワードは、
+standalone.\*/configuration/mgmt-users.properties にて
+全て'admin/RedHat1!'に設定してある。
+Keycloakについては初回アクセス時に設定したものがデータベースに保存される。
+
+
+# サンプルアプリを使ったOIDCによるSSO設定のチュートリアル
+
